@@ -1,9 +1,8 @@
-#change token based on email address - right now it says "unicode" not callable
-
 import csv
 import urllib2
 import json
 import time
+import random
 
 inputs = []
 emails = []
@@ -17,12 +16,11 @@ def email_permutator():
 	for x in trials:
 		emails.append(''.join([x, ending]))
 
-def token(email):
+def find_token(email):
 	response = urllib2.Request('https://rapportive.com/login_status?user_email=' + email)
 	token_json = json.load(urllib2.urlopen(response))
 	global token
 	token = token_json["session_token"]
-	print token
 
 def rapportive(email):
 	req = urllib2.Request('https://profiles.rapportive.com/contacts/email/' + email, None, {'X-Session-Token' : token})
@@ -30,7 +28,7 @@ def rapportive(email):
 	resp = json.load(urllib2.urlopen(req))
 
 def csv_writer(results):
-	resultsFile = open('input.csv', 'w')
+	resultsFile = open('output.csv', 'w')
 	wr = csv.writer(resultsFile)
 	for row in inputs:
 		wr.writerow(row)
@@ -45,8 +43,7 @@ def csv_reader():
 def tryer(i):
 	count = 0
 	for email in emails:
-		print email
-		token(email)
+		find_token(email)
 		rapportive(email)
 		if resp["contact"]["first_name"] == first_name and resp["contact"]["last_name"] == last_name:
 			correct_email = resp["contact"]["email"]
@@ -56,7 +53,7 @@ def tryer(i):
 			count += 1
 			if count == len(trials):
 				inputs[i].append("Email not found")
-			time.sleep(15)
+			time.sleep(random.randrange(9,15))
 	emails[:] = []
 
 def set_name(i):
@@ -70,12 +67,12 @@ def set_name(i):
 
 def iterator():
 	csv_reader()
-	csv_writer(results)
 	i = 0
 	while i < len(inputs):
 		set_name(i)
 		email_permutator()
 		tryer(i)
+		csv_writer(results)
 		i += 1
 
 iterator()
