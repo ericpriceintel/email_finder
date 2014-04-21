@@ -53,19 +53,23 @@ class EmailFinder(object):
 			self.emails.append('%s%s'%(x, self.ending))
 
 	def find_token(self, email):
-		response = requests.get('https://rapportive.com/login_status?user_email=%s' %(email))
+		url = 'https://rapportive.com/login_status?user_email='
+		response = requests.get('%s%s' %(url, email))
 		json_response = response.json()
 		self.token = json_response['session_token']
 
 	def rapportive(self, email):
-		req = requests.get('https://profiles.rapportive.com/contacts/email/%s' %(email), headers={'X-Session-Token' : self.token})
+		url = 'https://profiles.rapportive.com/contacts/email/'
+		req = requests.get('%s%s' %(url, email), 
+					    	headers={'X-Session-Token' : self.token})
 		self.resp = req.json()
 
 	def tryer(self, i):
 		for count, email in enumerate(self.emails):
 			self.find_token(email)
 			self.rapportive(email)
-			if self.resp["contact"]["first_name"] == self.first_name and self.resp["contact"]["last_name"] == self.last_name:
+			if (self.resp["contact"]["first_name"] == self.first_name and 
+				self.resp["contact"]["last_name"] == self.last_name):
 				correct_email = self.resp["contact"]["email"]
 				print correct_email
 				self.inputs[i].append(correct_email)
