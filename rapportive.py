@@ -1,78 +1,87 @@
+#figure out how to not overwrite the entire output.csv file for every loo
+#figure out how to avoid the Rapportive timeout
+
 import csv
-import urllib2
-import json
 import time
 import random
+import requests
 
-inputs = []
-emails = []
-results = []
-	
+class EmailFinder(object):
+	"""Finds emails based on an inputted csv
+	"""
 
-def email_permutator():
-	"This takes the above information and creates common email formats:"
-	global trials
-	trials = [first_name, '.'.join([first_initial,last_name]),''.join([first_initial, last_name]), '.'.join([first_name, last_name]), ''.join([first_name,last_name])]
-	for x in trials:
-		emails.append(''.join([x, ending]))
+	def __init__(self, input_csv, output_csv):
+		self.input_csv = input_csv
+		self.output_csv = output_csv
+		self.inputs = []
+		self.emails = []
+		self.results = []
 
-def find_token(email):
-	response = urllib2.Request('https://rapportive.com/login_status?user_email=' + email)
-	token_json = json.load(urllib2.urlopen(response))
-	global token
-	token = token_json["session_token"]
+	def find_emails(self):
+		self.csv_reader()
+		self.i = 0
+		while self.i < len(self.inputs):
+			self.set_name(self.i)
+			self.email_permutator()
+			self.tryer(self.i)
+			self.csv_writer()
+			self.i += 1
 
-def rapportive(email):
-	req = urllib2.Request('https://profiles.rapportive.com/contacts/email/' + email, None, {'X-Session-Token' : token})
-	global resp
-	resp = json.load(urllib2.urlopen(req))
+	def csv_reader(self):
+		with open('input.csv', 'rU') as initial_file:
+			wr = csv.reader(initial_file, delimiter=',')
+			for row in wr:
+				self.inputs.append(row)
 
-def csv_writer(results):
-	resultsFile = open('output.csv', 'w')
-	wr = csv.writer(resultsFile)
-	for row in inputs:
-		wr.writerow(row)
+	def set_name(self, i):
+		self.first_name = self.inputs[i][0]
+		self.first_initial = self.first_name[0]
+		self.last_name = self.inputs[i][1]
+		self.last_initial = self.last_name[0]
+		self.domain = self.inputs[i][2]
+		self.ending = '@%s' %(self.domain)
 
-def csv_reader():
-	initialFile = open('input.csv', 'rU')
-	wr = csv.reader(initialFile, delimiter=",")
-	for row in wr:
-		inputs.append(row)
-	initialFile.close()
+	def email_permutator(self):
+		'''This takes the data from the set_name method and creates common email formats.
+		'''
+		self.trials = [self.first_name,
+					'%s.%s'%(self.first_initial, self.last_name),
+					'%s%s'%(self.first_initial, self.last_name),
+					'%s.%s'%(self.first_name, self.last_name),
+					'%s%s'%(self.first_name, self.last_name)]
+		for x in self.trials:
+			self.emails.append('%s%s'%(x, self.ending))
 
-def tryer(i):
-	count = 0
-	for email in emails:
-		find_token(email)
-		rapportive(email)
-		if resp["contact"]["first_name"] == first_name and resp["contact"]["last_name"] == last_name:
-			correct_email = resp["contact"]["email"]
-			inputs[i].append(correct_email)
-			break
-		else:
-			count += 1
-			if count == len(trials):
-				inputs[i].append("Email not found")
-			time.sleep(random.randrange(9,15))
-	emails[:] = []
+	def find_token(self, email):
+		response = requests.get('https://rapportive.com/login_status?user_email=%s' %(email))
+		json_response = response.json()
+		self.token = json_response['session_token']
 
-def set_name(i):
-	global first_name, first_initial, last_name, last_initial, ending
-	first_name = inputs[i][0]
-	first_initial = first_name[0]
-	last_name = inputs[i][1]
-	last_initial = last_name[0]
-	domain = inputs[i][2]
-	ending = ''.join(['@',domain])
+	def rapportive(self, email):
+		req = requests.get('https://profiles.rapportive.com/contacts/email/%s' %(email), headers={'X-Session-Token' : self.token})
+		self.resp = req.json()
 
-def iterator():
-	csv_reader()
-	i = 0
-	while i < len(inputs):
-		set_name(i)
-		email_permutator()
-		tryer(i)
-		csv_writer(results)
-		i += 1
+	def tryer(self, i):
+		for count, email in enumerate(self.emails):
+			self.find_token(email)
+			self.rapportive(email)
+			if self.resp["contact"]["first_name"] == self.first_name and self.resp["contact"]["last_name"] == self.last_name:
+				correct_email = self.resp["contact"]["email"]
+				print correct_email
+				self.inputs[i].append(correct_email)
+				break
+			else:
+				count += 1
+				if count == len(self.trials):
+					self.inputs[i].append("Email not found")
+				time.sleep(random.randrange(5,10))
+		self.emails[:] = []
 
-iterator()
+	def csv_writer(self):
+		with open('output.csv', 'w') as results_file:
+			wr = csv.writer(results_file)
+			for x in self.inputs:
+				wr.writerow(x)
+
+email_finder = EmailFinder('input.csv', 'output.csv')
+email_finder.find_emails()
